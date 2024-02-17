@@ -11,8 +11,7 @@ from sqlalchemy import Integer, String, Text
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 # Import your forms from the forms.py
-from forms import CreatePostForm, RegisterForm
-
+from forms import CreatePostForm, RegisterForm, LoginForm
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(12)
@@ -20,8 +19,8 @@ ckeditor = CKEditor(app)
 Bootstrap5(app)
 
 # Configure Flask-Login's Login Manager
-# login_manager = LoginManager()
-# login_manager.init_app(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
 
 
 # CREATE DATABASE
@@ -62,6 +61,15 @@ with app.app_context():
 def register():
     form = RegisterForm()
     if form.validate_on_submit():
+        # Check if user email already exist in the database
+        email = form.email.data
+        check_user = db.session.execute(db.select(User).where(User.email == email)).scalar()
+        if check_user:
+            # User already exists
+            flash("You've already signed up with that email, log in instead!")
+            return redirect(url_for('login'))
+
+        # Add new user to the database.
         hash_password = generate_password_hash(
             form.password.data,
             method="scrypt",
@@ -74,18 +82,41 @@ def register():
         )
         db.session.add(new_user)
         db.session.commit()
+        login_user(new_user)
         return redirect(url_for("get_all_posts"))
     return render_template("register.html", form=form)
 
 
-# TODO: Retrieve a user from the database based on their email. 
-@app.route('/login')
+# Create a user_loader callback
+@login_manager.user_loader
+def load_user(user_id):
+    return db.get_or_404(User, user_id)
+
+
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    return render_template("login.html")
+    form = LoginForm()
+    if form.validate_on_submit():
+        email = form.email.data
+        password = form.password.data
+        # Find user by email
+        user = db.session.execute(db.select(User).where(User.email == email)).scalar()
+        if user:
+            if check_password_hash(user.password, password):
+                login_user(user)
+                return redirect(url_for("get_all_posts"))
+            else:
+                flash('Incorrect password, please try again.')
+                return redirect(url_for("login"))
+        else:
+            flash('The email not found, please try again.')
+            return redirect(url_for("login"))
+    return render_template("login.html", form=form)
 
 
 @app.route('/logout')
 def logout():
+    logout_user()
     return redirect(url_for('get_all_posts'))
 
 
