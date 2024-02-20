@@ -72,7 +72,7 @@ class User(UserMixin, db.Model):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(100), unique=True)
-    password: Mapped[str] = mapped_column(String(100))
+    password: Mapped[str] = mapped_column(String(1000))
     name: Mapped[str] = mapped_column(String(1000))
 
     # This will act like a List of BlogPost objects attached to each User.
@@ -98,7 +98,6 @@ class Comment(db.Model):
     # *******Add child relationship*******#
     blog_post_id: Mapped[int] = mapped_column(Integer, db.ForeignKey("blog_posts.id"))
     blog_post = relationship("BlogPost", back_populates="comments")
-
 
 
 with app.app_context():
